@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOC Sequestration Boxplot</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .title {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .chart {
+            margin: 20px 0;
+        }
+        .axis {
+            font-size: 12px;
+        }
+        .axis-label {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .box {
+            fill-opacity: 0.8;
+            stroke: #333;
+            stroke-width: 2;
+        }
+        .whisker {
+            stroke: #333;
+            stroke-width: 2;
+        }
+        .median {
+            stroke: #333;
+            stroke-width: 3;
+        }
+        .grid {
+            stroke: #e0e0e0;
+            stroke-width: 0.5;
+        }
+        .outlier {
+            fill: #333;
+            stroke: #333;
+            stroke-width: 1;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+            max-width: 250px;
+        }
+        .tooltip-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">SOC Sequestration by Study Design</div>
+        <div id="chart"></div>
+        <div class="tooltip" id="tooltip"></div>
+    </div>
+
+    <script>
+        // Data (filtered to exclude depth.tf == false)
+        // Correct mapping: "No CC" -> "Observational", "CC One Measure" -> "Cross-sectional", "CC Mult Measure" -> "Longitudinal"
+        const data = {
+            'Observational': {
+                values: [1.09666666675,2.29,3.59,7.1],
+                min: 1.09666666675,
+                q1: 2.29,
+                q2: 2.94,
+                q3: 3.59,
+                max: 7.1,
+                totalStudies: 4,
+                includedStudies: 4,
+                excludedStudies: 0,
+                mean: 3.519,
+                median: 3.590
+            },
+            'Cross-sectional': {
+                values: [-0.58333333335,-0.07142857143,-0.063125,-0.0464,-0.0157499999999999,0.07,0.1166666667,0.1182142857,0.3107802795,0.35771124224,0.49112628804,1.5130952381,2.135,2.17441999985,5.246153846],
+                min: -0.58333333335,
+                q1: -0.0464,
+                q2: 0.1182142857,
+                q3: 1.5130952381,
+                max: 5.246153846,
+                totalStudies: 18,
+                includedStudies: 15,
+                excludedStudies: 3,
+                mean: 0.784,
+                median: 0.118
+            },
+            'Longitudinal': {
+                values: [-0.12857142858,0.672],
+                min: -0.12857142858,
+                q1: -0.12857142858,
+                q2: 0.272,
+                q3: 0.672,
+                max: 0.672,
+                totalStudies: 5,
+                includedStudies: 2,
+                excludedStudies: 3,
+                mean: 0.272,
+                median: 0.672
+            }
+        };
+
+        // Colors for each category
+        const colors = {
+            'Observational': '#8B4A9C',
+            'Cross-sectional': '#8B4A9C',
+            'Longitudinal': '#8B4A9C'
+        };
+
+        // Chart dimensions
+        const margin = { top: 20, right: 40, bottom: 60, left: 80 };
+        const width = 800 - margin.left - margin.right;
+        const height = 500 - margin.top - margin.bottom;
+
+        // Create SVG
+        const svg = d3.select("#chart")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // Categories
+        const categories = Object.keys(data);
+        
+        // Scales
+        const xScale = d3.scaleBand()
+            .domain(categories)
+            .range([0, width])
+            .padding(0.3);
+
+        const yScale = d3.scaleLinear()
+            .domain([-1, 8])
+            .range([height, 0]);
+
+        // Add grid lines
+        svg.selectAll(".grid")
+            .data(yScale.ticks(8))
+            .enter()
+            .append("line")
+            .attr("class", "grid")
+            .attr("x1", 0)
+            .attr("x2", width)
+            .attr("y1", d => yScale(d))
+            .attr("y2", d => yScale(d));
+
+        // Add axes
+        svg.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(xScale));
+
+        svg.append("g")
+            .attr("class", "axis")
+            .call(d3.axisLeft(yScale));
+
+        // Add horizontal line at y=0
+        svg.append("line")
+            .attr("x1", 0)
+            .attr("x2", width)
+            .attr("y1", yScale(0))
+            .attr("y2", yScale(0))
+            .attr("stroke", "black")
+            .attr("stroke-width", 1.5);
+
+        // Add y-axis label
+        svg.append("text")
+            .attr("class", "axis-label")
+            .attr("transform", "rotate(-90)")
+            .attr("y", 0 - margin.left)
+            .attr("x", 0 - (height / 2))
+            .attr("dy", "1em")
+            .style("text-anchor", "middle")
+            .text("SOC sequestration (MgC/ha/year)");
+
+        // Box width
+        const boxWidth = xScale.bandwidth() * 0.6;
+
+        // Tooltip
+        const tooltip = d3.select("#tooltip");
+
+        // Draw boxes for each category
+        categories.forEach(category => {
+            const categoryData = data[category];
+            const x = xScale(category) + xScale.bandwidth() / 2;
+            
+            // Create a group for each boxplot
+            const boxGroup = svg.append("g")
+                .attr("class", "box-group")
+                .style("cursor", "pointer");
+            
+            // Draw box (IQR)
+            boxGroup.append("rect")
+                .attr("class", "box")
+                .attr("x", x - boxWidth / 2)
+                .attr("y", yScale(categoryData.q3))
+                .attr("width", boxWidth)
+                .attr("height", yScale(categoryData.q1) - yScale(categoryData.q3))
+                .attr("fill", colors[category]);
+
+            // Draw median line
+            boxGroup.append("line")
+                .attr("class", "median")
+                .attr("x1", x - boxWidth / 2)
+                .attr("x2", x + boxWidth / 2)
+                .attr("y1", yScale(categoryData.q2))
+                .attr("y2", yScale(categoryData.q2));
+
+            // Draw whiskers (extend to min/max as specified)
+            // Upper whisker
+            boxGroup.append("line")
+                .attr("class", "whisker")
+                .attr("x1", x)
+                .attr("x2", x)
+                .attr("y1", yScale(categoryData.q3))
+                .attr("y2", yScale(categoryData.max));
+
+            // Lower whisker
+            boxGroup.append("line")
+                .attr("class", "whisker")
+                .attr("x1", x)
+                .attr("x2", x)
+                .attr("y1", yScale(categoryData.q1))
+                .attr("y2", yScale(categoryData.min));
+
+            // Whisker caps
+            boxGroup.append("line")
+                .attr("class", "whisker")
+                .attr("x1", x - boxWidth / 4)
+                .attr("x2", x + boxWidth / 4)
+                .attr("y1", yScale(categoryData.max))
+                .attr("y2", yScale(categoryData.max));
+
+            boxGroup.append("line")
+                .attr("class", "whisker")
+                .attr("x1", x - boxWidth / 4)
+                .attr("x2", x + boxWidth / 4)
+                .attr("y1", yScale(categoryData.min))
+                .attr("y2", yScale(categoryData.min));
+
+            // Add invisible rectangle for hover area
+            boxGroup.append("rect")
+                .attr("x", x - boxWidth / 2 - 10)
+                .attr("y", yScale(categoryData.max) - 10)
+                .attr("width", boxWidth + 20)
+                .attr("height", yScale(categoryData.min) - yScale(categoryData.max) + 20)
+                .attr("fill", "transparent")
+                .on("mouseover", function(event) {
+                    tooltip.style("opacity", 1);
+                    
+                    const tooltipContent = `
+                        <div class="tooltip-title">${category}</div>
+                        <strong>Studies:</strong> ${categoryData.includedStudies} included, ${categoryData.excludedStudies} excluded<br>
+                        <strong>Mean:</strong> ${categoryData.mean.toFixed(3)} MgC/ha/year<br>
+                        <strong>Median:</strong> ${categoryData.median.toFixed(3)} MgC/ha/year<br>
+                        <strong>Min:</strong> ${categoryData.min.toFixed(3)} MgC/ha/year<br>
+                        <strong>Max:</strong> ${categoryData.max.toFixed(3)} MgC/ha/year
+                    `;
+                    
+                    tooltip.html(tooltipContent)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mousemove", function(event) {
+                    tooltip.style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("opacity", 0);
+                });
+        });
+
+    </script>
+</body>
+</html>
